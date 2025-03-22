@@ -6,9 +6,11 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	resources "github.com/hajimehoshi/ebiten/v2/examples/resources/images/flappy"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -93,8 +95,16 @@ type Game struct {
 	hitPlayer    *audio.Player
 }
 
+func (g *Game) init() {
+	g.x16 = 0
+	g.y16 = 100 * 16
+	g.cameraX = -240
+	g.cameraY = 0
+}
+
 func (g *Game) Update() error {
 	g.cameraX += 2
+	g.x16 += 32
 
 	return nil
 }
@@ -109,7 +119,6 @@ func (g *Game) DrawTiles(screen *ebiten.Image) {
 
 	op := &ebiten.DrawImageOptions{}
 
-	// g.DrawTiles(screen)
 	op.GeoM.Reset()
 	for i := -2; i < nx+1; i++ {
 		// ground
@@ -120,13 +129,28 @@ func (g *Game) DrawTiles(screen *ebiten.Image) {
 	}
 }
 
+func (g *Game) drawGopher(screen *ebiten.Image) {
+	op := &ebiten.DrawImageOptions{}
+	w, h := gopherImage.Bounds().Dx(), gopherImage.Bounds().Dy()
+	op.GeoM.Translate(-float64(w)/2.0, -float64(h)/2.0)
+	op.GeoM.Rotate(float64(g.vy16) / 96.0 * math.Pi / 6)
+	op.GeoM.Translate(float64(w)/2.0, float64(h)/2.0)
+	op.GeoM.Translate(float64(g.x16/16.0)-float64(g.cameraX), float64(g.y16/16.0)-float64(g.cameraY))
+	op.Filter = ebiten.FilterLinear
+	screen.DrawImage(gopherImage, op)
+
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("%v", op.GeoM.String()))
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{0x00, 0xbc, 0xff, 0xff})
 
 	op := &text.DrawOptions{}
 
 	g.DrawTiles(screen)
+	g.drawGopher(screen)
 
+	// draw score
 	op = &text.DrawOptions{}
 	op.GeoM.Translate(screenWidth, 0)
 	op.ColorScale.ScaleWithColor(color.White)
@@ -145,7 +169,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Flappy")
-	if err := ebiten.RunGame(&Game{}); err != nil {
+
+	g := &Game{}
+	g.init()
+	if err := ebiten.RunGame(g); err != nil {
 		log.Fatal(err)
 	}
 }
