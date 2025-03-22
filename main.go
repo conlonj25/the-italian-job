@@ -106,6 +106,20 @@ func (g *Game) Update() error {
 	g.cameraX += 2
 	g.x16 += 32
 
+	// Gravity
+	g.vy16 += 4
+	if g.vy16 > 96 {
+		g.vy16 = 96
+	}
+
+	clamp := screenHeight*16 - 1600
+
+	if g.y16+g.vy16 > clamp {
+		g.y16 = clamp
+	} else {
+		g.y16 += g.vy16
+	}
+
 	return nil
 }
 
@@ -138,12 +152,11 @@ func (g *Game) drawGopher(screen *ebiten.Image) {
 	op.GeoM.Translate(float64(g.x16/16.0)-float64(g.cameraX), float64(g.y16/16.0)-float64(g.cameraY))
 	op.Filter = ebiten.FilterLinear
 	screen.DrawImage(gopherImage, op)
-
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("%v", op.GeoM.String()))
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{0x00, 0xbc, 0xff, 0xff})
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("y16: %v", g.y16))
 
 	op := &text.DrawOptions{}
 
