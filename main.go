@@ -29,6 +29,11 @@ func floorMod(x, y int) int {
 	return x - floorDiv(x, y)*y
 }
 
+// pipe
+// r := image.Rect(pipeTileSrcX, pipeTileSrcY+tileSize, pipeTileSrcX+tileSize*2, pipeTileSrcY+tileSize*2)
+// top
+// r := image.Rect(pipeTileSrcX, pipeTileSrcY, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize)
+
 const (
 	screenWidth      = 640
 	screenHeight     = 480
@@ -123,7 +128,7 @@ func (g *Game) Update() error {
 
 	// jump
 	if g.isKeyJustPressed() && g.y16 == clamp {
-		g.vy16 = -130
+		g.vy16 = -150
 	}
 
 	return nil
@@ -139,7 +144,6 @@ func (g *Game) DrawTiles(screen *ebiten.Image) {
 
 	op := &ebiten.DrawImageOptions{}
 
-	op.GeoM.Reset()
 	for i := -2; i < nx+1; i++ {
 		// ground
 		op.GeoM.Reset()
@@ -147,6 +151,19 @@ func (g *Game) DrawTiles(screen *ebiten.Image) {
 			float64((ny-1)*tileSize-floorMod(g.cameraY, tileSize)))
 		screen.DrawImage(tilesImage.SubImage(image.Rect(0, 0, tileSize, tileSize)).(*ebiten.Image), op)
 	}
+
+	// pipes
+	var r image.Rectangle
+	op.GeoM.Reset()
+	op.GeoM.Translate(
+		float64(-g.cameraX+1000),
+		float64((ny-2)*tileSize-floorMod(g.cameraY, tileSize)),
+	)
+	r = image.Rect(pipeTileSrcX, pipeTileSrcY+tileSize, pipeTileSrcX+tileSize*2, pipeTileSrcY+tileSize*2)
+	screen.DrawImage(tilesImage.SubImage(r).(*ebiten.Image), op)
+	op.GeoM.Translate(0, -float64(tileSize))
+	r = image.Rect(pipeTileSrcX, pipeTileSrcY, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize)
+	screen.DrawImage(tilesImage.SubImage(r).(*ebiten.Image), op)
 }
 
 func (g *Game) drawGopher(screen *ebiten.Image) {
@@ -162,7 +179,7 @@ func (g *Game) drawGopher(screen *ebiten.Image) {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{0x00, 0xbc, 0xff, 0xff})
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("y16: %v", g.y16))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("cameraX: %v, gopher: %v, %v", g.cameraX*16, g.x16, g.y16))
 
 	op := &text.DrawOptions{}
 
