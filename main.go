@@ -13,6 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	resources "github.com/hajimehoshi/ebiten/v2/examples/resources/images/flappy"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
@@ -112,12 +113,17 @@ func (g *Game) Update() error {
 		g.vy16 = 96
 	}
 
+	// clamp to ground
 	clamp := screenHeight*16 - 1600
-
 	if g.y16+g.vy16 > clamp {
 		g.y16 = clamp
 	} else {
 		g.y16 += g.vy16
+	}
+
+	// jump
+	if g.isKeyJustPressed() && g.y16 == clamp {
+		g.vy16 = -130
 	}
 
 	return nil
@@ -173,6 +179,39 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		Source: arcadeFaceSource,
 		Size:   fontSize,
 	}, op)
+}
+
+func (g *Game) isKeyJustPressed() bool {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		return true
+	}
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		return true
+	}
+	g.touchIDs = inpututil.AppendJustPressedTouchIDs(g.touchIDs[:0])
+	if len(g.touchIDs) > 0 {
+		return true
+	}
+	g.gamepadIDs = ebiten.AppendGamepadIDs(g.gamepadIDs[:0])
+	for _, g := range g.gamepadIDs {
+		if ebiten.IsStandardGamepadLayoutAvailable(g) {
+			if inpututil.IsStandardGamepadButtonJustPressed(g, ebiten.StandardGamepadButtonRightBottom) {
+				return true
+			}
+			if inpututil.IsStandardGamepadButtonJustPressed(g, ebiten.StandardGamepadButtonRightRight) {
+				return true
+			}
+		} else {
+			// The button 0/1 might not be A/B buttons.
+			if inpututil.IsGamepadButtonJustPressed(g, ebiten.GamepadButton0) {
+				return true
+			}
+			if inpututil.IsGamepadButtonJustPressed(g, ebiten.GamepadButton1) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
