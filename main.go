@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
@@ -106,6 +107,25 @@ func (g *Game) init() {
 	g.y16 = 100 * 16
 	g.cameraX = -240
 	g.cameraY = 0
+
+	g.pipeTileYs = make([]int, 256)
+	for i := range g.pipeTileYs {
+		g.pipeTileYs[i] = rand.IntN(6) + 2
+	}
+}
+
+func (g *Game) pipeAt(tileX int) (tileY int, ok bool) {
+	fmt.Println("values", tileX-pipeStartOffsetX)
+	if (tileX - pipeStartOffsetX) <= 0 {
+		fmt.Println("first")
+		return 0, false
+	}
+	if floorMod(tileX-pipeStartOffsetX, pipeIntervalX) != 0 {
+		fmt.Println("second")
+		return 0, false
+	}
+	idx := floorDiv(tileX-pipeStartOffsetX, pipeIntervalX)
+	return g.pipeTileYs[idx%len(g.pipeTileYs)], true
 }
 
 func (g *Game) Update() error {
@@ -142,36 +162,47 @@ func (g *Game) DrawTiles(screen *ebiten.Image) {
 		pipeTileSrcY = 192
 	)
 
-	op := &ebiten.DrawImageOptions{}
+	// rectPipeSection := image.Rect(pipeTileSrcX, pipeTileSrcY+tileSize, pipeTileSrcX+tileSize*2, pipeTileSrcY+tileSize*2)
+	// rectPipeFlange := image.Rect(pipeTileSrcX, pipeTileSrcY, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize)
+	rectGroundBlock := image.Rect(0, 0, tileSize, tileSize)
 
+	op := &ebiten.DrawImageOptions{}
 	for i := -2; i < nx+1; i++ {
+		windowRightShift := floorMod(g.cameraX, tileSize)
+		windowDownShift := floorMod(g.cameraY, tileSize)
 		// ground
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(i*tileSize-floorMod(g.cameraX, tileSize)),
-			float64((ny-1)*tileSize-floorMod(g.cameraY, tileSize)))
-		screen.DrawImage(tilesImage.SubImage(image.Rect(0, 0, tileSize, tileSize)).(*ebiten.Image), op)
-	}
+		op.GeoM.Translate(
+			float64(i*tileSize-windowRightShift),
+			float64((ny-1)*tileSize-windowDownShift),
+		)
+		screen.DrawImage(tilesImage.SubImage(rectGroundBlock).(*ebiten.Image), op)
 
-	// pipes
-	var r image.Rectangle
-	op.GeoM.Reset()
-	op.GeoM.Translate(
-		float64(-g.cameraX+1000),
-		float64((ny-2)*tileSize-floorMod(g.cameraY, tileSize)),
-	)
-	r = image.Rect(pipeTileSrcX, pipeTileSrcY+tileSize, pipeTileSrcX+tileSize*2, pipeTileSrcY+tileSize*2)
-	screen.DrawImage(tilesImage.SubImage(r).(*ebiten.Image), op)
-	op.GeoM.Translate(0, -float64(tileSize))
-	r = image.Rect(pipeTileSrcX, pipeTileSrcY, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize)
-	screen.DrawImage(tilesImage.SubImage(r).(*ebiten.Image), op)
+		// pipes
+		g.pipeAt(i)
+		if tileY, ok := g.pipeAt(floorDiv(g.cameraX, tileSize) + i); ok {
+			for j := tileY + pipeGapY; j < screenHeight/tileSize-1; j++ {
+				op.GeoM.Reset()
+				op.GeoM.Translate(float64(i*tileSize-floorMod(g.cameraX, tileSize)),
+					float64(j*tileSize-floorMod(g.cameraY, tileSize)))
+				var r image.Rectangle
+				if j == tileY+pipeGapY {
+					r = image.Rect(pipeTileSrcX, pipeTileSrcY, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize)
+				} else {
+					r = image.Rect(pipeTileSrcX, pipeTileSrcY+tileSize, pipeTileSrcX+pipeWidth, pipeTileSrcY+tileSize+tileSize)
+				}
+				screen.DrawImage(tilesImage.SubImage(r).(*ebiten.Image), op)
+			}
+		}
+	}
 }
 
 func (g *Game) drawGopher(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	w, h := gopherImage.Bounds().Dx(), gopherImage.Bounds().Dy()
-	op.GeoM.Translate(-float64(w)/2.0, -float64(h)/2.0)
-	op.GeoM.Rotate(float64(g.vy16) / 96.0 * math.Pi / 6)
-	op.GeoM.Translate(float64(w)/2.0, float64(h)/2.0)
+	op.GeoM.Translate(-float64(w)/2.0, -float64(h)/2.0)  // origin to centre
+	op.GeoM.Rotate(float64(g.vy16) / 96.0 * math.Pi / 6) // rotate on jump
+	op.GeoM.Translate(float64(w)/2.0, float64(h)/2.0)    // origin back to top left
 	op.GeoM.Translate(float64(g.x16/16.0)-float64(g.cameraX), float64(g.y16/16.0)-float64(g.cameraY))
 	op.Filter = ebiten.FilterLinear
 	screen.DrawImage(gopherImage, op)
@@ -179,7 +210,7 @@ func (g *Game) drawGopher(screen *ebiten.Image) {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{0x00, 0xbc, 0xff, 0xff})
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("cameraX: %v, gopher: %v, %v", g.cameraX*16, g.x16, g.y16))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("cameraX: %v, gopher: %v, %v", g.cameraX, g.x16, g.y16))
 
 	op := &text.DrawOptions{}
 
